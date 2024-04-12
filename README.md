@@ -1,6 +1,6 @@
 # BurritOS
 BurritOs is a minimalist, Rust-written operating system project, following the well-known one of Oppermann.
-It provides the basic mechanisms for interrupts (hardware, CPU), paging and mem allocation (see more at Oppermann's project webpage).
+It provides the basic mechanisms for interrupts (hardware, CPU exceptions), paging and mem allocation (see more at Oppermann's project webpage).
 I shall add other custom features (filesystem, ...).
 
 # Target Arch
