@@ -1,8 +1,6 @@
 // Each crate root has to define its own panic handler routine in the test and/or not(test) cases
 // as well as its _start routine
 
-// Target triple: <arch><sub>-<vendor>-<sys>-<env>
-
 #![no_std]
 #![no_main]
 #![feature(custom_test_frameworks)]
@@ -12,27 +10,18 @@
 use burritos::println;
 use core::panic::PanicInfo;
 
-#[cfg(not(test))]
-#[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
-    println!("{}", _info);
-    loop {} // !
+#[test_case]
+fn test_println() {
+    println!("test_println output");
 }
 
-#[cfg(test)]
+#[no_mangle]
+pub extern "C" fn _start() -> ! {
+    test_main();
+    loop {}
+}
+
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     burritos::test_panic_handler(info);
-}
-
-// Main
-#[no_mangle]
-pub extern "C" fn _start() -> ! {
-    println!("Hello world!");
-    #[cfg(test)]
-    test_main();
-    println!("From Titoutee's kernel!\n");
-    println!("Hello Universe!\n");
-
-    loop {}
 }

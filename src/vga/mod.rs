@@ -1,5 +1,6 @@
 //! Behaviour around the VGA text mode, providing a volatile safe-ish writer to the mapped VGA buffer
 
+use crate::serial_println;
 use core::fmt::{self, Write};
 use lazy_static::lazy_static;
 use spin::Mutex;
@@ -156,4 +157,46 @@ pub fn print_smthg() {
     WRITER.lock().write_byte(b'H');
     WRITER.lock().write_byte(b'\n');
     write!(WRITER.lock(), "The numbers are {} and {}", 42, 1.0 / 3.0).unwrap();
+}
+
+#[test_case]
+fn println_test() {
+    println!("Hello World!");
+}
+
+#[test_case]
+fn serial_test() {
+    serial_println!("Hellow World!");
+}
+
+#[test_case]
+fn println_output_test() {
+    let s = "Some test string that fits on a single line";
+    println!("{}", s);
+    for (i, c) in s.chars().enumerate() {
+        let screen_char = WRITER.lock().buffer.chars[BUFFER_HEIGHT - 2][i].read(); //prinltn!
+        assert_eq!(char::from(screen_char.ascii_character), c);
+    }
+}
+
+#[test_case]
+fn long_lines_test() {
+    let s = "Some test string that does not fit on a single line because it is made up of many characters";
+
+    //serial_println!("{}", s.len());
+    println!("{}", s);
+}
+
+#[test_case]
+fn long_lines_wrapping_test() {
+    let s = "Some test string that does not fit on a single line because it is made up of many characters";
+
+    //serial_println!("{}", s.len());
+    println!("{}", s);
+
+    let line_slice = &s[..BUFFER_WIDTH];
+    for (i, c) in line_slice.chars().enumerate() {
+        let screen_char = WRITER.lock().buffer.chars[BUFFER_HEIGHT - 3][i].read(); //println!
+        assert_eq!(char::from(screen_char.ascii_character), c);
+    }
 }
