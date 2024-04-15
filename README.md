@@ -10,8 +10,9 @@ The rustc target architecture for this project is configured in `x86_64_arch.jso
 essentially provide your own, as long as it follows the same rules.
 You must consequently change the default rustc target in `.cargo/config`.
 
-# Bootloader and VM
+# Bootloader and Environment
 The bootloader may be created thanks to the `bootimage` crate (https://github.com/rust-osdev/bootimage) and run, with the entire kernel, in QEMU, as Oppermann's project suggests.
 `bootimage` has to be installed via the command `cargo install bootimage` in your `home` dir.
 The cargo config file is configured so that `cargo run` directly invokes `bootimage` and produces the bootimage, and runs it in QEMU. 
 The bootloader, bundled with the kernel image, both linked in a compiled artefact, can be found as `target/name_of_target/bootimage-X.bin`.
+The whole image may also be copied to a disk/USB drive: `dd if=target/x86_64_arch/debug/bootimage-burritos.bin of=/dev/sdX && sync` after compilation.

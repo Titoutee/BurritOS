@@ -29,10 +29,19 @@ fn panic(info: &PanicInfo) -> ! {
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
     println!("Hello world!");
+
+    burritos::init();
+
+    fn stack_overflow() {
+        stack_overflow();
+    }
+
+    stack_overflow();
+
     #[cfg(test)]
     test_main();
-    println!("From Titoutee's kernel!\n");
-    println!("Hello Universe!\n");
+
+    println!("It did not crash!");
 
     loop {}
 }
