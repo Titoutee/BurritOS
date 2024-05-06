@@ -1,3 +1,6 @@
+use core::fmt::Display;
+
+use bootloader::bootinfo::{MemoryMap, MemoryRegionType};
 use x86_64::{structures::paging::PageTable, VirtAddr};
 use x86_64::{
     PhysAddr,
@@ -5,6 +8,7 @@ use x86_64::{
 };
 
 pub unsafe fn init(physical_memory_offset: VirtAddr) -> OffsetPageTable<'static> {
+    // access to physical address of the lvl 4 page table
     let level_4_table = active_level_4_table(physical_memory_offset);
     OffsetPageTable::new(level_4_table, physical_memory_offset)
 }
@@ -15,7 +19,7 @@ pub unsafe fn init(physical_memory_offset: VirtAddr) -> OffsetPageTable<'static>
 /// complete physical memory is mapped to virtual memory at the passed
 /// `physical_memory_offset`. Also, this function must be only called once
 /// to avoid aliasing `&mut` references (which is undefined behavior).
-pub unsafe fn active_level_4_table(physical_memory_offset: VirtAddr)
+unsafe fn active_level_4_table(physical_memory_offset: VirtAddr)
     -> &'static mut PageTable
 {
     use x86_64::registers::control::Cr3;
@@ -29,12 +33,45 @@ pub unsafe fn active_level_4_table(physical_memory_offset: VirtAddr)
     &mut *page_table_ptr // unsafe
 }
 
-/// A FrameAllocator that always returns `None`.
-pub struct EmptyFrameAllocator;
+pub struct BootInfoFrameAllocator {
+    memory_map: &'static MemoryMap,
+    next: usize,
+}
 
-unsafe impl FrameAllocator<Size4KiB> for EmptyFrameAllocator {
+impl BootInfoFrameAllocator {
+    /// Create a FrameAllocator from the passed memory map.
+    ///
+    /// This function is unsafe because the caller must guarantee that the passed
+    /// memory map is valid. The main requirement is that all frames that are marked
+    /// as `USABLE` in it are really unused.
+    pub unsafe fn init(memory_map: &'static MemoryMap) -> Self {
+        BootInfoFrameAllocator {
+            memory_map,
+            next: 0,
+        }
+    }
+
+    /// Creates an iterator over the usable frames specified in the memory map
+    fn usable_frames(&self) -> impl Iterator<Item = PhysFrame> {
+        let regions = self.memory_map.iter();
+        let usable_regions = regions.filter(|r| r.region_type == MemoryRegionType::Usable);
+        let addr_ranges = usable_regions.map(|r| r.range.start_addr()..r.range.end_addr());
+        let frame_addresses = addr_ranges.flat_map(|r| r.step_by(4096));
+        frame_addresses.map(|addr| PhysFrame::containing_address(PhysAddr::new(addr)))
+    }
+}
+
+unsafe impl FrameAllocator<Size4KiB> for BootInfoFrameAllocator {
     fn allocate_frame(&mut self) -> Option<PhysFrame> {
-        None
+        let frame = self.usable_frames().nth(self.next);
+        self.next += 1;
+        frame
+    }
+}
+
+impl Display for BootInfoFrameAllocator {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{:?}", self.memory_map)
     }
 }
 
@@ -69,7 +106,7 @@ pub fn create_example_mapping(
 //pub unsafe fn translate_addr(addr: VirtAddr, physical_memory_offset: VirtAddr) -> Option<PhysAddr> {
 //    translate_addr_inner(addr, physical_memory_offset)
 //}
-//
+
 // Private function that is called by `translate_addr`.
 //
 // This function is safe to limit the scope of `unsafe` because Rust treats
@@ -82,6 +119,7 @@ pub fn create_example_mapping(
 //    // read the active level 4 frame from the CR3 register
 //    let (level_4_table_frame, _) = Cr3::read(); //Physical Address
 //
+//    // Extract the indexes from the virtual address, which index through different page table levels
 //    let table_indexes = [
 //        addr.p4_index(),
 //        addr.p3_index(),
@@ -95,7 +133,7 @@ pub fn create_example_mapping(
 //        // convert the frame into a page table reference
 //        let virt = physical_memory_offset + frame.start_address().as_u64();
 //        let table_ptr: *const PageTable = virt.as_ptr();
-//        let table = unsafe { &*table_ptr }; // Access the frame through the cirtual address (only way through)
+//        let table = unsafe { &*table_ptr }; // Access the frame through the virtual address
 //
 //        // read the page table entry and update `frame`
 //        let entry = &table[index];
