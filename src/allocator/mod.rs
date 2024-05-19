@@ -8,11 +8,15 @@ use x86_64::{
     VirtAddr,
 };
 
+use self::bump::BumpAlloc;
+pub mod bump;
+pub mod linked_list;
+
 pub const HEAP_START: usize = 0x_4444_4444_0000;
 pub const HEAP_SIZE: usize = 100 * 1_024; // 100 KiB
 
 #[global_allocator]
-static ALLOCATOR: LockedHeap = LockedHeap::empty();
+static ALLOCATOR: Locked<BumpAlloc> = Locked::new(BumpAlloc::new());
 
 pub fn init_heap(
     mapper: &mut impl Mapper<Size4KiB>,
@@ -37,8 +41,47 @@ pub fn init_heap(
     }
 
     unsafe {
-        ALLOCATOR.lock().init(HEAP_START as *mut u8, HEAP_SIZE);
+        ALLOCATOR.lock().init(HEAP_START, HEAP_SIZE);
     }
 
     Ok(())
 }
+
+
+/// A wrapper around spin::Mutex to permit trait implementations, in order to bypass immutability implied
+/// by GlobalAlloc trait implementation.
+pub struct Locked<T> {
+    inner: spin::Mutex<T>,
+}
+
+impl<T> Locked<T> {
+    pub const fn new(inner: T) -> Self {
+        Locked {
+            inner: spin::Mutex::new(inner),
+        }
+    }
+
+    pub fn lock(&self) -> spin::MutexGuard<T> {
+        self.inner.lock()
+    }
+}
+
+/// Align the given address `addr` upwards to alignment `align`.
+///
+/// Requires that `align` is a power of two.
+fn align_up(addr: usize, align: usize) -> usize {
+    (addr + align - 1) & !(align - 1)
+}
+
+//pub unsafe trait GlobalAlloc {
+//    unsafe fn alloc(&self, layout: Layout) -> *mut u8;
+//    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout);
+//
+//    unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 { ... }
+//    unsafe fn realloc(
+//        &self,
+//        ptr: *mut u8,
+//        layout: Layout,
+//        new_size: usize
+//    ) -> *mut u8 { ... }
+//}

@@ -12,7 +12,6 @@ use alloc::boxed::Box;
 use alloc::vec::Vec;
 use burritos::allocator::HEAP_SIZE;
 
-
 entry_point!(main);
 
 fn main(boot_info: &'static BootInfo) -> ! {
@@ -21,8 +20,8 @@ fn main(boot_info: &'static BootInfo) -> ! {
     use x86_64::VirtAddr;
 
     burritos::init();
-    let phys_emm_offset = VirtAddr::new(boot_info.physical_memory_offset);
-    let mut mapper = unsafe {memory::init(phys_emm_offset)};
+    let phys_mem_offset = VirtAddr::new(boot_info.physical_memory_offset);
+    let mut mapper = unsafe {memory::init(phys_mem_offset)};
     let mut frame_allocator = unsafe {
         BootInfoFrameAllocator::init(&boot_info.memory_map)
     };
@@ -40,6 +39,7 @@ fn simple_allocation() {
     assert_eq!(*heap_value_2, 13);
 }
 
+// Large alloc
 #[test_case]
 fn large_vec() {
     let n = 1000;

@@ -28,9 +28,7 @@ unsafe fn active_level_4_table(physical_memory_offset: VirtAddr)
 
     let phys = level_4_table_frame.start_address();
     let virt = physical_memory_offset + phys.as_u64();
-    let page_table_ptr: *mut PageTable = virt.as_mut_ptr();
-
-    &mut *page_table_ptr // unsafe
+    &mut *(virt.as_mut_ptr() as *mut PageTable) // unsafe
 }
 
 pub struct BootInfoFrameAllocator {
