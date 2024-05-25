@@ -41,7 +41,7 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 
     // Init
     println!("Hello world!");
-    let ptr = 0x2031b2 as *mut u8; // Code segment (on my machine, may not work on another machine)
+    let ptr = 0x2031b2 as *mut u8; // Code segment (on my insatance, may not work on another)
     burritos::init();
 
     // Paging

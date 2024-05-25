@@ -4,6 +4,7 @@
 #![no_std]
 #![cfg_attr(test, no_main)]
 #![feature(custom_test_frameworks)]
+#![feature(const_mut_refs)]
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 #![feature(abi_x86_interrupt)]
@@ -61,17 +62,15 @@ pub trait Testable {
     fn run(&self) -> ();
 }
 
-impl<T> Testable for T
-where
-    T: Fn(),
-{
+impl<T: Fn()> Testable for T {
     fn run(&self) {
-        serial_print!("{}...\t", core::any::type_name::<T>());
-        self();
-        serial_println!("[ok]");
+        serial_print!("{}...\t", core::any::type_name::<T>()); // To print the names of the test functions
+        self(); 
+        serial_println!("[ok]"); // If fail, this will never be reached
     }
 }
 
+// Runs 
 pub fn test_runner(tests: &[&dyn Testable]) {
     serial_println!("Running {} tests", tests.len());
     for test in tests {

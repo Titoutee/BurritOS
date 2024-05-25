@@ -1,8 +1,9 @@
-use core::num::IntErrorKind;
-
 use lazy_static::lazy_static;
 use spin::Mutex;
 use uart_16550::SerialPort;
+
+// UART devices are used here through their memory-mapped interface to bring in minimal
+// support for serial communication
 
 lazy_static! {
     // Spinlock to ensure cross-thread safety
@@ -13,15 +14,17 @@ lazy_static! {
     };
 }
 
+// Some cumbersome macro pseudo-implementation
 #[doc(hidden)]
 pub fn _print(args: ::core::fmt::Arguments) {
     use core::fmt::Write;
     use x86_64::instructions::interrupts;
 
+    // A write is made atomic
     interrupts::without_interrupts(|| {
         SERIAL1
             .lock()
-            .write_fmt(args) //SerialPort already implements fmt::Write
+            .write_fmt(args) // SerialPort natively implements fmt::Write
             .expect("Printing to serial failed");
     })
 }

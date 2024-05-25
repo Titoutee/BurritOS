@@ -8,7 +8,7 @@ use volatile::Volatile;
 
 // Evaluate static at runtime, so no need for const functions' calls
 lazy_static! {
-    // Safely shared across threads
+    // Safely shared across threads Writer
     pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer {
         column_position: 0,
         color_code: ColorCode::new(Color::Yellow, Color::Black),
@@ -16,6 +16,7 @@ lazy_static! {
     });
 }
 
+// Some cumbersome macro definitions to pseudo-implement basic output mecanisms
 #[macro_export]
 macro_rules! print {
     ($($arg:tt)*) => ($crate::vga::_print(format_args!($($arg)*)));
@@ -63,7 +64,7 @@ struct ColorCode(u8);
 
 impl ColorCode {
     fn new(foreground: Color, background: Color) -> ColorCode {
-        // This is valid since the repr(u8) of Color's variants is 4-bit, so no loss occurs
+        // This is valid since the repr(u8) of Color variants is 4-bit, so no loss occurs when shifting
         ColorCode((background as u8) << 4 | (foreground as u8)) // Foreground: bits 8-11 (first) / Background: bits 12-14 (second)
     }
 }
@@ -78,6 +79,7 @@ struct ScreenChar {
 const BUFFER_HEIGHT: usize = 25;
 const BUFFER_WIDTH: usize = 80;
 
+// Buffer for VGA outputs
 #[repr(transparent)]
 struct Buffer {
     // Volatile data: futureproof against rustc optimizations to remove unidirectionnal I/O operations
@@ -177,6 +179,8 @@ fn println_output_test() {
     use core::writeln;
     use x86_64::instructions::interrupts;
     let s = "Some test string that fits on a single line";
+
+    // A write is made atomic
     interrupts::without_interrupts(|| {
         let mut writer = WRITER.lock();
         writeln!(writer, "\n{}", s).expect("writeln failed");
