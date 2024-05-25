@@ -1,5 +1,3 @@
-
-
 use crate::println;
 
 use super::{align_up, Locked};
