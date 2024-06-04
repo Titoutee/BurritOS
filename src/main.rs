@@ -12,7 +12,7 @@
 extern crate alloc;
 
 use alloc::{boxed::Box, rc::Rc, vec, vec::Vec};
-
+use burritos::allocator::linked_list::LinkedListAlloc;
 use bootloader::{entry_point, BootInfo};
 use burritos::memory;
 use burritos::memory::BootInfoFrameAllocator;
@@ -73,8 +73,10 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     for i in 0..500 {
         vec.push(i);
     }
+    println!("Before dealloc!");
     println!("vec at {:p}", vec.as_slice());
-
+    println!("After dealloc!");
+    
     let ref_counted = Rc::new(vec![1, 2, 3]);
     let cloned_ref = ref_counted.clone();
     assert_eq!(2, Rc::strong_count(&cloned_ref));
@@ -91,7 +93,7 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 
     #[cfg(test)]
     test_main();
-
+    //println!("{}", core::mem::align_of::<LinkedListAlloc>());
     println!("It did not crash!");
     burritos::hlt_loop();
 }

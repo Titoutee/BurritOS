@@ -7,7 +7,11 @@
 extern crate alloc;
 
 use bootloader::{entry_point, BootInfo};
+use burritos::{println, serial_println};
 use core::panic::PanicInfo;
+use core::ptr::{null_mut, write};
+use burritos::allocator::ALLOCATOR;
+use core::alloc::{GlobalAlloc, Layout};
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use burritos::allocator::HEAP_SIZE;
@@ -43,7 +47,7 @@ fn simple_allocation() {
 #[test_case]
 fn large_vec() {
     let n = 1000;
-    let mut vec = Vec::new();
+    let mut vec = Vec::with_capacity(1000); // Permits faster allocation
     for i in 0..n {
         vec.push(i);
     }
@@ -58,6 +62,15 @@ fn many_boxes() {
     }
 }
 
+#[test_case]
+fn manual_alloc() {
+    let layout = Layout::new::<Vec<u8>>();
+    unsafe {
+        let a = ALLOCATOR.alloc(layout);
+        assert_ne!(a, null_mut());
+        ALLOCATOR.dealloc(a, layout);
+    }
+}
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
