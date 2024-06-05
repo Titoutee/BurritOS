@@ -9,6 +9,7 @@ use x86_64::{
 };
 
 use linked_list::LinkedListAlloc;
+use fixed_size::FixedSizeAlloc;
 pub mod bump;
 pub mod linked_list;
 pub mod fixed_size;
@@ -17,7 +18,8 @@ pub const HEAP_START: usize = 0x_4444_4444_0000;
 pub const HEAP_SIZE: usize = 100 * 1_024; // 100 KiB
 
 #[global_allocator]
-pub static ALLOCATOR: Locked<LinkedListAlloc> = Locked::new(LinkedListAlloc::new());
+//pub static ALLOCATOR: Locked<LinkedListAlloc> = Locked::new(LinkedListAlloc::new());
+pub static ALLOCATOR: Locked<FixedSizeAlloc> = Locked::new(FixedSizeAlloc::new());
 
 pub fn init_heap(
     mapper: &mut impl Mapper<Size4KiB>,

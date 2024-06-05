@@ -7,7 +7,9 @@
 // The fixed-size pattern provides allocation and deallocation methods which are O(1), as no traversal
 // of the free-list is needed.
 
-use core::{alloc::{GlobalAlloc, Layout}, ptr};
+use core::{alloc::{GlobalAlloc, Layout}, ptr::{self, NonNull}, mem};
+
+use super::Locked;
 
 const BLOCK_SIZES: &[usize] = &[8, 16, 32, 64, 128, 256, 512, 1024, 2048];
 // Slab size does not go under 8B, because at least a 64-bit pointer must fit into it.
@@ -17,13 +19,18 @@ struct Node {
     // No size, because all nodes under a common size per list
 }
 
+fn list_index(layout: &Layout) -> Option<usize> {
+    let block_size = layout.size().max(layout.align()); // The block size is its alignment
+    BLOCK_SIZES.iter().position(|&fb_size| fb_size >= block_size)
+}
+
 pub struct FixedSizeAlloc {
     list_heads: [Option<&'static mut Node>; BLOCK_SIZES.len()],
     fallback_alloc: linked_list_allocator::Heap,
 }
 
 impl FixedSizeAlloc {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         const EMPTY:  Option<&'static mut Node> = None;
         FixedSizeAlloc {
             list_heads: [EMPTY; BLOCK_SIZES.len()],
@@ -42,18 +49,57 @@ impl FixedSizeAlloc {
             Err(_) => ptr::null_mut(),
         }
     }
-
-    fn list_index(&self, layout: Layout) -> Option<usize> {
-        let block_size = layout.size().max(layout.align()); // The block size is its alignment
-        BLOCK_SIZES.iter().position(|&fb_size| fb_size >= block_size)
-    }
 }
 
-unsafe impl GlobalAlloc for FixedSizeAlloc {
+unsafe impl GlobalAlloc for Locked<FixedSizeAlloc> {
+    /// Retrieves a (potential) node from the corresponding size linked list, so that is is
+    /// popped from the front of the free list. If the chosen free list is empty (which is the initial case)
+    /// blocks are lazily allocated for that list, and remain maintained by the fallback even when `dealloc`
+    /// is called. This way, the fixed size allocator is built upon its fallback allocator, tking profit of the latter's
+    /// allocation. 
+    /// One exception is if dealloc is used in another context than on one fixed-size linked-list. In this case, the fallback
+    /// allocator physically deallocates the given slab.
+    /// 
+    /// **Performance overhead**: initial allocations may suffer from low performance due to the near-systematic use of the fallback
+    /// allocator.
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        todo!()
+        let mut allocator = self.lock();
+        match list_index(&layout) {
+            Some(index) => {
+                match allocator.list_heads[index].take() {
+                    Some(head) => {
+                        allocator.list_heads[index] = head.next.take();
+                        head as *mut Node as *mut u8
+                    }
+                    None => {
+                        let block_size = BLOCK_SIZES[index];
+                        let block_align = block_size;
+                        let alloc_layout = Layout::from_size_align(block_size, block_align).unwrap();
+                        allocator.fallback_alloc(alloc_layout)
+                    }
+                }
+            }
+            None => allocator.fallback_alloc(layout)
+        }
     }
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        todo!()
+        let mut allocator = self.lock();
+        match list_index(&layout) {
+            Some(index) => {
+                let new_node = Node {
+                    next: allocator.list_heads[index].take(),
+                };
+                // verify that block has size and alignment required for storing node
+                assert!(mem::size_of::<Node>() <= BLOCK_SIZES[index]);
+                assert!(mem::align_of::<Node>() <= BLOCK_SIZES[index]);
+                let new_node_ptr = ptr as *mut Node;
+                new_node_ptr.write(new_node);
+                allocator.list_heads[index] = Some(&mut *new_node_ptr);
+            }
+            None => {
+                let ptr = NonNull::new(ptr).unwrap();
+                allocator.fallback_alloc.deallocate(ptr, layout);
+            }
+        }
     }
 }
