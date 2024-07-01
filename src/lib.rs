@@ -25,8 +25,9 @@ pub mod interrupts;
 pub mod memory;
 pub mod serial;
 pub mod vga;
+pub mod task;
 
-/// Initialises GDT, interrupt env (IDT, ...) and enables interrupts
+/// Initializes GDT & interrupt environment (IDT, ...) + enables interrupts
 pub fn init() {
     gdt::init();
     interrupts::init_idt();

@@ -30,7 +30,7 @@ extern "x86-interrupt" fn test_double_fault_handler(
     _stack_frame: InterruptStackFrame,
     _error_code: u64,
 ) -> ! {
-    serial_println!("[ok]");
+    serial_println!("[ok]"); // Success case!
     exit_qemu(QemuExitCode::Success);
     loop {}
 }
@@ -50,7 +50,7 @@ pub extern "C" fn _start() -> ! {
 
 #[allow(unconditional_recursion)]
 fn stack_overflow() {
-    stack_overflow(); // for each recursion, the return address is pushed
+    stack_overflow();
     volatile::Volatile::new(0).read(); // prevent tail recursion optimizations
 }
 #[panic_handler]

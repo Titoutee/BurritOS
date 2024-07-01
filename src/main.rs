@@ -14,10 +14,14 @@ extern crate alloc;
 use alloc::{boxed::Box, rc::Rc, vec, vec::Vec};
 use burritos::allocator::linked_list::LinkedListAlloc;
 use bootloader::{entry_point, BootInfo};
-use burritos::memory;
+use burritos::{hlt_loop, memory};
 use burritos::memory::BootInfoFrameAllocator;
 use burritos::println;
+use burritos::task::{Task, task_executor::Executor, simple_executor::SimpleExecutor};
 use core::panic::PanicInfo;
+use core::marker::PhantomPinned;
+use core::pin::Pin;
+use burritos::task::keyboard::print_keypresses;
 
 entry_point!(kernel_main);
 
@@ -84,16 +88,61 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
         "current reference count is {}",
         Rc::strong_count(&cloned_ref)
     );
-    core::mem::drop(ref_counted);
+    core::mem::drop(ref_counted); // Manual drop
     assert_eq!(1, Rc::strong_count(&cloned_ref));
     println!(
         "current reference count is now {}",
         Rc::strong_count(&cloned_ref)
     );
 
-    #[cfg(test)]
-    test_main();
-    //println!("{}", core::mem::align_of::<LinkedListAlloc>());
-    println!("It did not crash!");
-    burritos::hlt_loop();
+    // To demo how mem::replace() can break the pinning mechanism of heap allocation
+    struct SelfRef {
+        self_ptr: *const SelfRef,
+    }
+    let mut heap_value = Box::new(SelfRef {
+        self_ptr: 0 as *const SelfRef,
+    });
+    let ptr = &*heap_value as *const SelfRef;
+    heap_value.self_ptr = ptr;
+    assert_eq!(&*heap_value as *const SelfRef as usize, heap_value.self_ptr as usize);
+    println!("heap value at {:p}", heap_value);
+    println!("internal reference : {:p}", heap_value.self_ptr);
+    // Everything works, BUT...
+    // std::mem::replace(&mut *heap_value, SelfRef { self_ptr: 0 as *const SelfRef });
+    // &stack_value != stack_value.self_ptr
+
+    // Rather use pinning instead
+    struct SelfRefPinned {
+        self_ptr: *const SelfRefPinned,
+        _pin: PhantomPinned, // Opt-out of Unpin
+    }
+    let mut heap_value = Box::pin(SelfRefPinned {
+        self_ptr: 0 as *const SelfRefPinned,
+        _pin: PhantomPinned,
+    });
+    let ptr = &*heap_value as *const SelfRefPinned;
+    unsafe {
+        let mut_ref = Pin::as_mut(&mut heap_value);
+        Pin::get_unchecked_mut(mut_ref).self_ptr = ptr;
+    }
+
+    assert_eq!(&*heap_value as *const SelfRefPinned as usize, heap_value.self_ptr as usize);
+    println!("heap value at {:p}", heap_value);
+    println!("internal reference : {:p}", heap_value.self_ptr);
+
+    // Async executor
+    let mut executor = Executor::new();
+    executor.spawn(Task::new(example_task()));
+    executor.spawn(Task::new(print_keypresses()));
+    executor.run();
+    hlt_loop();
+}
+
+async fn async_number() -> u32 {
+    42
+}
+
+async fn example_task() {
+    let number = async_number().await;
+    println!("async number: {}", number);
 }

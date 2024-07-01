@@ -7,9 +7,8 @@
 extern crate alloc;
 
 use bootloader::{entry_point, BootInfo};
-use burritos::{println, serial_println};
 use core::panic::PanicInfo;
-use core::ptr::{null_mut, write};
+use core::ptr::null_mut;
 use burritos::allocator::ALLOCATOR;
 use core::alloc::{GlobalAlloc, Layout};
 use alloc::boxed::Box;

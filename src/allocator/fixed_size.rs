@@ -55,12 +55,15 @@ unsafe impl GlobalAlloc for Locked<FixedSizeAlloc> {
     /// Retrieves a (potential) node from the corresponding size linked list, so that is is
     /// popped from the front of the free list. If the chosen free list is empty (which is the initial case)
     /// blocks are lazily allocated for that list, and remain maintained by the fallback even when `dealloc`
-    /// is called. This way, the fixed size allocator is built upon its fallback allocator, tking profit of the latter's
+    /// is called. This way, the fixed size allocator is built upon its fallback allocator, taking profit of the latter's
     /// allocation. 
+    /// One consequence of this is that fixed-size deallocation is "virtual", in the sense that the actual blocks are not
+    /// freed other than from the free-list. The fallback allocator does not free the blocks at each deallocation.
+    /// 
     /// One exception is if dealloc is used in another context than on one fixed-size linked-list. In this case, the fallback
     /// allocator physically deallocates the given slab.
     /// 
-    /// **Performance overhead**: initial allocations may suffer from low performance due to the near-systematic use of the fallback
+    /// **Performance overhead**: initial allocations may suffer from low performance due to the systematic use of the fallback
     /// allocator.
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         let mut allocator = self.lock();
@@ -71,32 +74,35 @@ unsafe impl GlobalAlloc for Locked<FixedSizeAlloc> {
                         allocator.list_heads[index] = head.next.take();
                         head as *mut Node as *mut u8
                     }
-                    None => {
+                    None => { // lazy alloc
                         let block_size = BLOCK_SIZES[index];
                         let block_align = block_size;
                         let alloc_layout = Layout::from_size_align(block_size, block_align).unwrap();
                         allocator.fallback_alloc(alloc_layout)
                     }
                 }
-            }
-            None => allocator.fallback_alloc(layout)
+            } 
+            None => allocator.fallback_alloc(layout) // Other size alloc
         }
     }
+
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
         let mut allocator = self.lock();
         match list_index(&layout) {
-            Some(index) => {
+            Some(index) => { // virtual dealloc
                 let new_node = Node {
                     next: allocator.list_heads[index].take(),
                 };
                 // verify that block has size and alignment required for storing node
                 assert!(mem::size_of::<Node>() <= BLOCK_SIZES[index]);
                 assert!(mem::align_of::<Node>() <= BLOCK_SIZES[index]);
+                // store node, thus freeing this area
                 let new_node_ptr = ptr as *mut Node;
                 new_node_ptr.write(new_node);
+                // update the head
                 allocator.list_heads[index] = Some(&mut *new_node_ptr);
             }
-            None => {
+            None => { // Allocation was not made in a fixed-size compliant manner, but rather by the fallback allocator
                 let ptr = NonNull::new(ptr).unwrap();
                 allocator.fallback_alloc.deallocate(ptr, layout);
             }

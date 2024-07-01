@@ -4,7 +4,7 @@
 #![test_runner(test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
-use burritos::{exit_qemu, serial_print, serial_println, QemuExitCode};
+use burritos::{exit_qemu, serial_println, QemuExitCode};
 use core::panic::PanicInfo;
 
 #[no_mangle]
