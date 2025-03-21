@@ -1,5 +1,5 @@
 # BurritOS
-BurritOs is a minimalist, Rust-written operating system kernel, following the well-known one of Oppermann.
+BurritOS is a minimalist, Rust-written operating system kernel, following the well-known one of Oppermann.
 It provides the basic mechanisms for interrupts (hardware, CPU exceptions), paging and memory allocation (see more on Oppermann's project webpage). 
 
 # Target Arch
